@@ -4,20 +4,21 @@
 
 > **Not DataPilot.** DataPilot is NL→SQL / data warehouse querying. DocPilot is document RAG + ACL + citations. Do not confuse the two.
 
-## Status (Milestone B)
+## Status (Milestone C)
 
 Implemented:
 
-- **Markdown ingest** from `data/sample_docs/` (configurable path) with YAML frontmatter ACL fields
+- **Markdown ingest** from `data/sample_docs/` with YAML frontmatter ACL fields
 - **Chunking** with stable `chunk_id` / `doc_id`, source path, char offsets, section headings
-- **Real BM25 index** (`rank_bm25.BM25Okapi`) persisted under `indexes/bm25/` (gitignored)
-- **Vector index STUB** — clearly marked `not_real_embeddings` (no real embeddings / no fake semantic quality)
-- CLI + `scripts/build_index.py` to build indexes and smoke-query BM25
-- Fixture Markdown docs (labeled **FIXTURE**) including ACL frontmatter
+- **Real BM25 index** (`rank_bm25.BM25Okapi`) under `indexes/bm25/` (gitignored)
+- **Vector index STUB** — `not_real_embeddings` (no real embeddings)
+- **ACL-at-retrieve** — role filter applied during retrieval (not after generation)
+- **generate-with-citations** — every answer cites `chunk_id` / source; no evidence → refuse
+- **refuse** — three paths: `no_hits` / `unauthorized` (ACL) / `weak_evidence`
+- **CLI** `docpilot ask --role …` end-to-end
+- **Degraded / no-LLM** path when `OPENAI_API_KEY` is unset (extractive citation-only; clearly labeled)
 
-**Not** implemented (Milestone C+): ACL-at-retrieve pipeline, generate-with-citations, refuse path end-to-end. `docpilot ask` remains a stub. PDF ingest is an honest boundary stub (skipped / raises).
-
-No fake recall/MRR/accuracy metrics.
+**Not** implemented (Milestone D+): real vector embeddings, PDF ingest, eval metrics dashboards. No fabricated accuracy/recall metrics.
 
 ## V1 scope (planned)
 
@@ -34,9 +35,10 @@ No fake recall/MRR/accuracy metrics.
 ```
 ingest → chunk → index (BM25 real + vector stub)
                       ↓
-              retrieve (+ ACL filter)   ← Milestone C
+              retrieve (+ ACL filter at retrieve)
                       ↓
          generate-with-citations  OR  refuse
+         (LLM if key set; else DEGRADED / no-LLM)
 ```
 
 See [docs/architecture.md](docs/architecture.md) for ACL / frontmatter schema and data flow.
@@ -57,7 +59,7 @@ Optional YAML frontmatter on Markdown files:
 
 Normalized docs also carry `body`, `source_path`, `format`, `char_count`, `extra`.
 
-## How to run (Milestone B)
+## How to run (Milestone C)
 
 ```bash
 # from repo root
@@ -72,7 +74,22 @@ python scripts/build_index.py
 # or:
 python -m docpilot.cli ingest data/sample_docs --index-dir indexes
 
-# BM25 smoke query (prints chunk_id / path / raw scores — not eval metrics)
+# ACL-aware ask (role required)
+python -m docpilot.cli ask "What is ACL refuse behavior?" --role eng
+# or: docpilot ask "..." --role eng
+
+# Without OPENAI_API_KEY → degraded extractive / citation-only answer
+# (labeled DEGRADED / no-LLM). With a key → OpenAI-compatible generation.
+
+# Refuse demos
+python -m docpilot.cli ask "ACL refuse unauthorized" --role contractor
+python -m docpilot.cli ask "xyzzyqwertynonexistent999zzz" --role eng
+python -m docpilot.cli ask "ACL refuse" --role eng --refuse-threshold 1000
+
+# Demo script (all paths)
+python scripts/demo_ask_c.py
+
+# BM25 lexical smoke (no ACL)
 python -m docpilot.cli bm25-query "ACL refuse" --index-dir indexes
 
 # tests
@@ -81,16 +98,21 @@ pytest -q
 
 Indexes are written under `indexes/` (contents gitignored). Vector artifacts are stub-only and include `"not_real_embeddings": true`.
 
-## Honest stubs
+### Degraded / no-LLM note
 
-| Module | Milestone B status |
+If `OPENAI_API_KEY` is empty or unset, `ask` still runs: it retrieves ACL-allowed chunks and returns an **extractive citation-only** answer. Output is explicitly labeled **`DEGRADED / no-LLM`**. No fabricated claims beyond retrieved excerpts.
+
+## Honest stubs / status
+
+| Module | Milestone C status |
 |--------|--------------------|
 | `ingest.py` | Real for Markdown; PDF not implemented |
 | `chunking.py` | Real |
 | `index_bm25.py` | Real (`rank_bm25`) |
 | `index_vector.py` | **STUB** — `not_real_embeddings` |
-| `acl.py` / `retrieve.py` / `generate.py` / `refuse.py` | Still stubs (Milestone C+) |
-| `cli ask` | Stub (use `bm25-query` for lexical smoke) |
+| `acl.py` / `retrieve.py` | Real — ACL filter at retrieve |
+| `generate.py` / `refuse.py` | Real — citations + three refuse paths |
+| `cli ask` | Real — `--role` end-to-end |
 
 ## Layout
 
@@ -101,7 +123,7 @@ data/sample_docs/ Fixture documents (labeled FIXTURE)
 data/eval/        Eval sets (later)
 indexes/          Generated indexes (gitignored contents)
 tests/            Smoke / unit tests
-scripts/          Helper scripts (build_index.py)
+scripts/          Helper scripts (build_index.py, demo_ask_c.py)
 ```
 
 ## License

@@ -1,6 +1,6 @@
 # DocPilot architecture
 
-Status: **Milestone B** — MD ingest → chunk → persistent BM25 are real; vector index is a stub marked `not_real_embeddings`. ACL retrieve / generate / refuse remain design-only until Milestone C+.
+Status: **Milestone C** — MD ingest → chunk → BM25, ACL-at-retrieve, generate-with-citations, refuse, and `ask --role` are implemented. Vector index remains a stub marked `not_real_embeddings`.
 
 ## Pipeline
 
@@ -11,24 +11,24 @@ Status: **Milestone B** — MD ingest → chunk → persistent BM25 are real; ve
                             └──────────┬───────────┘
                                        ↓
                             ┌──────────────────────┐
-                            │ retrieve (+ ACL)     │  ← not implemented (C)
+                            │ retrieve (+ ACL)     │  ← filter at retrieve
                             └──────────┬───────────┘
                          enough evidence│
                          & authorized?  ├─ no → refuse
                                        ↓ yes
                             ┌──────────────────────┐
-                            │ generate + citations │  ← not implemented (C)
+                            │ generate + citations │  ← LLM or DEGRADED/no-LLM
                             └──────────────────────┘
 ```
 
 ## Stages
 
-1. **ingest** — Load Markdown under a configurable root (`DOCPILOT_DATA_DIR` / CLI path). Parse YAML frontmatter for ACL fields. PDF is an explicit boundary (not implemented).
-2. **chunk** — Split into retrieval units with stable `chunk_id`, `doc_id`, `source_path`, char offsets, and section headings when present.
-3. **index (BM25 + vector)** — Lexical BM25 via `rank_bm25.BM25Okapi`, persisted under `indexes/bm25/`. Vector path writes stub metadata only (`not_real_embeddings: true`); no embedding API/model required; search returns no semantic hits.
-4. **retrieve (ACL)** — Milestone C. Candidate chunks then filter by caller ACL. Not wired yet. `bm25-query` is lexical smoke only.
-5. **generate-with-citations** — Milestone C.
-6. **refuse** — Milestone C.
+1. **ingest** — Load Markdown under a configurable root. Parse YAML frontmatter for ACL fields. PDF is an explicit boundary (not implemented).
+2. **chunk** — Split into retrieval units with stable `chunk_id`, `doc_id`, `source_path`, char offsets, section headings; inherit `allowed_roles`.
+3. **index (BM25 + vector)** — Lexical BM25 via `rank_bm25.BM25Okapi` under `indexes/bm25/`. Vector path writes stub metadata only (`not_real_embeddings: true`).
+4. **retrieve (ACL)** — BM25 candidates, then **ACL filter at retrieve time** (not post-generation). Returns only role-allowed chunks; records `acl_dropped` / `raw_count`.
+5. **generate-with-citations** — LLM if `OPENAI_API_KEY` set; else extractive citation-only labeled `DEGRADED / no-LLM`. No invented sources.
+6. **refuse** — `no_hits` (no BM25 matches) / `unauthorized` (matches exist but all ACL-dropped) / `weak_evidence` (authorized but below score threshold).
 
 ## Frontmatter / ACL metadata schema (document-level)
 
@@ -38,7 +38,7 @@ See README table. Normalized fields used downstream:
 - `acl` — original `acl` field if present, else `{"allowed_roles": [...]}`
 - `visibility`, `label`, `doc_id`, `title`, `source_path`, `body`
 
-Chunk records inherit `allowed_roles` / `visibility` / `label` from the parent doc for later ACL-at-retrieve (not enforced in Milestone B).
+Chunk records inherit `allowed_roles` / `visibility` / `label`. ACL check: non-empty intersection of caller role(s) and chunk `allowed_roles` (case-insensitive). Empty allow-list or missing caller role → deny.
 
 ## Data flow
 
@@ -48,8 +48,8 @@ Chunk records inherit `allowed_roles` / `visibility` / `label` from the parent d
 | chunk | doc text | chunk records + doc_id | ephemeral → index |
 | index BM25 | chunks | `bm25_meta.json` + `bm25_tokens.pkl` | `indexes/bm25/` |
 | index vector | chunks | stub meta only | `indexes/vector/` (`not_real_embeddings`) |
-| retrieve | query + caller ACL | ranked allowed chunks | Milestone C |
-| generate / refuse | query + chunks | answer or refusal | Milestone C |
+| retrieve | query + caller role | ranked **allowed** chunks | in-memory; ACL at retrieve |
+| generate / refuse | query + chunks | answer+citations or refusal | stdout / JSON |
 
 ## Distinction from DataPilot
 
@@ -63,5 +63,6 @@ Chunk records inherit `allowed_roles` / `visibility` / `label` from the parent d
 ## Milestone boundary
 
 - **A:** skeleton, README, stubs, fixture, env example.
-- **B (this):** real MD ingest/chunk/BM25; vector stub with `not_real_embeddings`; BM25 smoke query CLI.
-- **C+:** ACL retrieve, generate-with-citations, refuse — not started.
+- **B:** real MD ingest/chunk/BM25; vector stub; BM25 smoke query CLI.
+- **C (this):** ACL-at-retrieve, generate-with-citations, refuse (3 paths), `ask --role`, degraded no-LLM.
+- **D+:** not started (real embeddings, PDF, richer eval, etc.).
