@@ -1,6 +1,6 @@
-"""DocPilot CLI (Typer) — Milestone D: offline gold eval + Milestone C ask path.
+"""DocPilot CLI (Typer) — V1 (Milestones A–E): ingest, BM25+ACL ask, refuse, eval, demo.
 
-Milestone B/C commands remain. Vector stays stub-only. No Milestone E web UI.
+Vector stays stub-only (not_real_embeddings). CLI is enough for V1; no web UI.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from docpilot.refuse import refuse_from_retrieve
 from docpilot.eval_runner import format_report, run_eval
 from docpilot.retrieve import DEFAULT_REFUSE_THRESHOLD, retrieve
 
-app = typer.Typer(help="DocPilot — ACL-aware document Q&A (Milestone D: eval + ask/retrieve/refuse).")
+app = typer.Typer(help="DocPilot — ACL-aware document Q&A (V1: BM25+ACL ask/refuse/eval; vector stub).")
 
 
 def _default_data_dir() -> Path:
@@ -52,10 +52,10 @@ def main() -> None:
 @app.command("status")
 def status() -> None:
     """Show current milestone status."""
-    typer.echo("DocPilot Milestone D: offline gold eval + ACL ask/retrieve/refuse.")
-    typer.echo(f"Vector index: STUB ({NOT_REAL_EMBEDDINGS}=True).")
+    typer.echo("DocPilot V1 (A–E closed): BM25+ACL ask/refuse + offline GOLD eval + demo_v1.")
+    typer.echo(f"Vector index: STUB ({NOT_REAL_EMBEDDINGS}=True) — not a hybrid selling point.")
     typer.echo("BM25 + ACL retrieve; ask --role; eval --gold (default DEGRADED / no-LLM).")
-    typer.echo("This is NOT DataPilot (NL→SQL). Milestone E web UI not started.")
+    typer.echo("Interview demo: python scripts/demo_v1.py. NOT DataPilot (NL->SQL).")
 
 
 @app.command("ingest")
