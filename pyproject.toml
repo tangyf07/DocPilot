@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docpilot"
+version = "0.1.0"
+description = "DocPilot — ACL-aware document Q&A with citations (NOT NL→SQL; that is DataPilot)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "tangyf07" }]
+dependencies = [
+  "rank-bm25>=0.2.2",
+  "numpy>=1.26.0",
+  "openai>=1.40.0",
+  "python-dotenv>=1.0.0",
+  "typer>=0.12.0",
+  "pydantic>=2.0.0",
+  "pydantic-settings>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+vector = []  # fill when choosing embedding/index stack
+
+[project.scripts]
+docpilot = "docpilot.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
