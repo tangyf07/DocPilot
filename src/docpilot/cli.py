@@ -1,6 +1,6 @@
-"""DocPilot CLI (Typer) — Milestone C: ACL retrieve + generate/refuse + ask.
+"""DocPilot CLI (Typer) — Milestone D: offline gold eval + Milestone C ask path.
 
-Milestone B commands (ingest / bm25-query) remain. Vector stays stub-only.
+Milestone B/C commands remain. Vector stays stub-only. No Milestone E web UI.
 """
 
 from __future__ import annotations
@@ -18,9 +18,10 @@ from docpilot.index_bm25 import build_bm25_index, load_bm25_index
 from docpilot.index_vector import NOT_REAL_EMBEDDINGS, build_vector_index
 from docpilot.ingest import ingest_directory, list_skipped_pdfs
 from docpilot.refuse import refuse_from_retrieve
+from docpilot.eval_runner import format_report, run_eval
 from docpilot.retrieve import DEFAULT_REFUSE_THRESHOLD, retrieve
 
-app = typer.Typer(help="DocPilot — ACL-aware document Q&A (Milestone C: ask/retrieve/refuse).")
+app = typer.Typer(help="DocPilot — ACL-aware document Q&A (Milestone D: eval + ask/retrieve/refuse).")
 
 
 def _default_data_dir() -> Path:
@@ -51,10 +52,10 @@ def main() -> None:
 @app.command("status")
 def status() -> None:
     """Show current milestone status."""
-    typer.echo("DocPilot Milestone C: ACL-at-retrieve + generate-with-citations + refuse.")
+    typer.echo("DocPilot Milestone D: offline gold eval + ACL ask/retrieve/refuse.")
     typer.echo(f"Vector index: STUB ({NOT_REAL_EMBEDDINGS}=True).")
-    typer.echo("BM25 + ACL retrieve; ask --role end-to-end.")
-    typer.echo("This is NOT DataPilot (NL→SQL).")
+    typer.echo("BM25 + ACL retrieve; ask --role; eval --gold (default DEGRADED / no-LLM).")
+    typer.echo("This is NOT DataPilot (NL→SQL). Milestone E web UI not started.")
 
 
 @app.command("ingest")
@@ -222,6 +223,55 @@ def ask_cmd(
         "backend": result.backend,
     }
     _print_ask_result(gen, as_json=as_json)
+
+
+
+@app.command("eval")
+def eval_cmd(
+    gold: Optional[str] = typer.Option(
+        None,
+        "--gold",
+        help="GOLD JSONL (default: data/eval/gold_milestone_d.jsonl)",
+    ),
+    index_dir: Optional[str] = typer.Option(
+        None,
+        "--index-dir",
+        help="Index dir (default: indexes or DOCPILOT_INDEX_DIR)",
+    ),
+    limit: Optional[int] = typer.Option(None, "--limit", help="Max gold items"),
+    live_llm: bool = typer.Option(
+        False,
+        "--live-llm",
+        help=(
+            "Optional experimental live LLM if key present; labeled not_real_api. "
+            "Default path remains DEGRADED / no-LLM."
+        ),
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print full JSON report"),
+) -> None:
+    """Offline gold eval (default DEGRADED / no-LLM). Metrics from this run only."""
+    gold_path = Path(gold or "data/eval/gold_milestone_d.jsonl")
+    root = Path(index_dir or os.environ.get("DOCPILOT_INDEX_DIR") or _default_index_dir())
+    if not gold_path.is_file():
+        typer.echo(f"ERROR: gold file not found: {gold_path}", err=True)
+        raise typer.Exit(code=1)
+    try:
+        report = run_eval(
+            gold_path,
+            index_dir=root,
+            force_degraded=not live_llm,
+            limit=limit,
+        )
+    except FileNotFoundError as e:
+        typer.echo(f"ERROR: {e}", err=True)
+        typer.echo("Run: python -m docpilot.cli ingest", err=True)
+        raise typer.Exit(code=1)
+    if as_json:
+        typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        typer.echo(format_report(report))
+    failures = int((report.get("metrics") or {}).get("failure_count") or 0)
+    raise typer.Exit(code=1 if failures else 0)
 
 
 if __name__ == "__main__":

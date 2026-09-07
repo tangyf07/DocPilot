@@ -4,7 +4,7 @@
 
 > **Not DataPilot.** DataPilot is NL→SQL / data warehouse querying. DocPilot is document RAG + ACL + citations. Do not confuse the two.
 
-## Status (Milestone C)
+## Status (Milestone D)
 
 Implemented:
 
@@ -17,8 +17,9 @@ Implemented:
 - **refuse** — three paths: `no_hits` / `unauthorized` (ACL) / `weak_evidence`
 - **CLI** `docpilot ask --role …` end-to-end
 - **Degraded / no-LLM** path when `OPENAI_API_KEY` is unset (extractive citation-only; clearly labeled)
+- **Milestone D eval** — GOLD fixtures (≥30) under `data/eval/`; offline runner; refuse correctness + citation coverage + optional answer heuristic (labeled heuristic, not accuracy). Default eval path is **DEGRADED / no-LLM**. Optional `--live-llm` is experimental and marked `not_real_api` (not production API eval). Metrics are computed from the run only — never hardcoded.
 
-**Not** implemented (Milestone D+): real vector embeddings, PDF ingest, eval metrics dashboards. No fabricated accuracy/recall metrics.
+**Not** implemented (later): real vector embeddings, PDF ingest, web UI / interview demo (Milestone E not started). No fabricated accuracy/recall metrics.
 
 ## V1 scope (planned)
 
@@ -59,7 +60,7 @@ Optional YAML frontmatter on Markdown files:
 
 Normalized docs also carry `body`, `source_path`, `format`, `char_count`, `extra`.
 
-## How to run (Milestone C)
+## How to run (Milestone C/D)
 
 ```bash
 # from repo root
@@ -102,9 +103,47 @@ Indexes are written under `indexes/` (contents gitignored). Vector artifacts are
 
 If `OPENAI_API_KEY` is empty or unset, `ask` still runs: it retrieves ACL-allowed chunks and returns an **extractive citation-only** answer. Output is explicitly labeled **`DEGRADED / no-LLM`**. No fabricated claims beyond retrieved excerpts.
 
+
+## Offline eval (Milestone D)
+
+Gold fixtures live in `data/eval/gold_milestone_d.jsonl` (labeled **GOLD**). Categories:
+
+- `authorized_answer` — expect answer + `chunk_id` citations
+- `unauthorized_refuse` — ACL refuse
+- `no_hits_refuse` — no BM25 evidence
+- `weak_evidence_refuse` — authorized hits below score threshold
+
+**Default path = DEGRADED / no-LLM** (no API key required). Metrics printed are computed from that run only:
+
+- `refuse_correctness` — expected refuse/ok (+ reason) vs actual
+- `citation_coverage` — when answer expected, citations must include `chunk_id`
+- `answer_heuristic` — simple token overlap; **labeled heuristic, not accuracy**
+
+```bash
+# ensure index exists
+python scripts/build_index.py
+
+# full offline eval (DEGRADED)
+python scripts/run_eval.py
+# or:
+python -m docpilot.cli eval
+
+# subset / JSON report
+python scripts/run_eval.py --limit 8 --json-out indexes/eval_report.json
+
+# optional experimental live LLM (NOT production API eval; labeled not_real_api)
+python scripts/run_eval.py --live-llm
+
+# tests (includes offline eval; no network/key)
+pytest -q
+pytest -q tests/test_milestone_d.py
+```
+
+Do **not** treat README or code comments as measured accuracy — only the numbers printed by a real `run_eval` / `docpilot eval` invocation.
+
 ## Honest stubs / status
 
-| Module | Milestone C status |
+| Module | Milestone D status |
 |--------|--------------------|
 | `ingest.py` | Real for Markdown; PDF not implemented |
 | `chunking.py` | Real |
@@ -113,6 +152,7 @@ If `OPENAI_API_KEY` is empty or unset, `ask` still runs: it retrieves ACL-allowe
 | `acl.py` / `retrieve.py` | Real — ACL filter at retrieve |
 | `generate.py` / `refuse.py` | Real — citations + three refuse paths |
 | `cli ask` | Real — `--role` end-to-end |
+| `eval_runner` / `cli eval` | Real — offline GOLD metrics from this run only |
 
 ## Layout
 
@@ -120,10 +160,10 @@ If `OPENAI_API_KEY` is empty or unset, `ask` still runs: it retrieves ACL-allowe
 src/docpilot/     Python package
 docs/             Architecture and design
 data/sample_docs/ Fixture documents (labeled FIXTURE)
-data/eval/        Eval sets (later)
+data/eval/        GOLD eval fixtures (Milestone D)
 indexes/          Generated indexes (gitignored contents)
 tests/            Smoke / unit tests
-scripts/          Helper scripts (build_index.py, demo_ask_c.py)
+scripts/          Helper scripts (build_index.py, demo_ask_c.py, run_eval.py)
 ```
 
 ## License
