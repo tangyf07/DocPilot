@@ -4,7 +4,7 @@ doc_id: fixture-acl-faq
 acl_groups: ["eng", "docs"]
 visibility: team
 label: FIXTURE
-note: Synthetic sample for DocPilot Milestone A. Not production policy. Not real company data.
+note: Synthetic sample for DocPilot. Not production policy. Not real company data.
 ---
 
 # FIXTURE — Access control FAQ (sample only)

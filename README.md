@@ -4,16 +4,20 @@
 
 > **Not DataPilot.** DataPilot is NL→SQL / data warehouse querying. DocPilot is document RAG + ACL + citations. Do not confuse the two.
 
-## Status (Milestone A)
+## Status (Milestone B)
 
-This repository currently contains a **skeleton only**:
+Implemented:
 
-- Package layout and stub modules (TODOs for later milestones)
-- Architecture notes
-- Sample fixture document (labeled FIXTURE — not production data)
-- Env example and dependency lists
+- **Markdown ingest** from `data/sample_docs/` (configurable path) with YAML frontmatter ACL fields
+- **Chunking** with stable `chunk_id` / `doc_id`, source path, char offsets, section headings
+- **Real BM25 index** (`rank_bm25.BM25Okapi`) persisted under `indexes/bm25/` (gitignored)
+- **Vector index STUB** — clearly marked `not_real_embeddings` (no real embeddings / no fake semantic quality)
+- CLI + `scripts/build_index.py` to build indexes and smoke-query BM25
+- Fixture Markdown docs (labeled **FIXTURE**) including ACL frontmatter
 
-There is **no** working end-to-end pipeline yet. No fake metrics, no pretend demo accuracy.
+**Not** implemented (Milestone C+): ACL-at-retrieve pipeline, generate-with-citations, refuse path end-to-end. `docpilot ask` remains a stub. PDF ingest is an honest boundary stub (skipped / raises).
+
+No fake recall/MRR/accuracy metrics.
 
 ## V1 scope (planned)
 
@@ -28,18 +32,32 @@ There is **no** working end-to-end pipeline yet. No fake metrics, no pretend dem
 ## Architecture overview
 
 ```
-ingest → chunk → index (BM25 + vector)
+ingest → chunk → index (BM25 real + vector stub)
                       ↓
-              retrieve (+ ACL filter)
+              retrieve (+ ACL filter)   ← Milestone C
                       ↓
          generate-with-citations  OR  refuse
 ```
 
-See [docs/architecture.md](docs/architecture.md) for ACL model and data flow.
+See [docs/architecture.md](docs/architecture.md) for ACL / frontmatter schema and data flow.
 
-## How to run (Milestone A)
+## Document frontmatter schema (ingest)
 
-Milestone A does **not** run a real pipeline. After later milestones:
+Optional YAML frontmatter on Markdown files:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `title` | string | Display title |
+| `doc_id` | string | Stable id (default: slug of filename) |
+| `allowed_roles` | list[str] | Role allow-list (preferred) |
+| `acl_groups` | list[str] | Synonym; merged into `allowed_roles` |
+| `acl` | list[str] or object | Alternate ACL; list merges as roles |
+| `visibility` | string | e.g. `private` / `team` / `public` |
+| `label` | string | Use `FIXTURE` for sample docs |
+
+Normalized docs also carry `body`, `source_path`, `format`, `char_count`, `extra`.
+
+## How to run (Milestone B)
 
 ```bash
 # from repo root
@@ -49,27 +67,41 @@ python -m venv .venv
 pip install -e ".[dev]"
 cp .env.example .env   # fill placeholders locally; never commit .env
 
-# planned CLI (stub today):
-# docpilot ingest ...
-# docpilot ask "..."
+# Build BM25 (+ vector stub marker) from fixtures
+python scripts/build_index.py
+# or:
+python -m docpilot.cli ingest data/sample_docs --index-dir indexes
+
+# BM25 smoke query (prints chunk_id / path / raw scores — not eval metrics)
+python -m docpilot.cli bm25-query "ACL refuse" --index-dir indexes
+
+# tests
+pytest -q
 ```
 
-Current CLI entry (`docpilot`) is a **stub** and will print that Milestone A is incomplete.
+Indexes are written under `indexes/` (contents gitignored). Vector artifacts are stub-only and include `"not_real_embeddings": true`.
 
 ## Honest stubs
 
-All modules under `src/docpilot/` except package metadata are stubs with `TODO` markers. Calling them should not claim success for unimplemented work.
+| Module | Milestone B status |
+|--------|--------------------|
+| `ingest.py` | Real for Markdown; PDF not implemented |
+| `chunking.py` | Real |
+| `index_bm25.py` | Real (`rank_bm25`) |
+| `index_vector.py` | **STUB** — `not_real_embeddings` |
+| `acl.py` / `retrieve.py` / `generate.py` / `refuse.py` | Still stubs (Milestone C+) |
+| `cli ask` | Stub (use `bm25-query` for lexical smoke) |
 
 ## Layout
 
 ```
-src/docpilot/     Python package (stubs)
+src/docpilot/     Python package
 docs/             Architecture and design
-data/sample_docs/ Sample / fixture documents
+data/sample_docs/ Fixture documents (labeled FIXTURE)
 data/eval/        Eval sets (later)
 indexes/          Generated indexes (gitignored contents)
-tests/            Tests (later)
-scripts/          Helper scripts (later)
+tests/            Smoke / unit tests
+scripts/          Helper scripts (build_index.py)
 ```
 
 ## License

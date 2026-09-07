@@ -22,7 +22,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0"]
-vector = []  # fill when choosing embedding/index stack
+# Real embedding stack intentionally empty until Milestone C+ / vector work.
+vector = []
 
 [project.scripts]
 docpilot = "docpilot.cli:app"

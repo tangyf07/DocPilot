@@ -1,16 +1,16 @@
-# Minimal declared deps for DocPilot V1 (Milestone A — not installed by this commit).
-# Install later when implementing ingest/index/retrieve/generate.
+# DocPilot V1 dependencies (Milestone B — BM25 ingest/index real; vector stub).
 
 # Search / NLP
 rank-bm25>=0.2.2
 numpy>=1.26.0
 
-# Embeddings / vector store (choose one later; listed as intent)
+# Embeddings / vector store — NOT required for Milestone B (vector is stub).
+# Install later when implementing real embeddings; until then not_real_embeddings=True.
 # sentence-transformers>=3.0.0
 # faiss-cpu>=1.8.0
 # chromadb>=0.5.0
 
-# LLM client
+# LLM client (generate path still stub — declared for later milestones)
 openai>=1.40.0
 
 # CLI / config
